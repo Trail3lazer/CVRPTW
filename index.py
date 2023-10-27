@@ -1,25 +1,30 @@
 import delivery
 import truck
-
-import pandas as pd
-import networkx as nx
-
-df = pd.read_excel("./WGUPS Distance Table.xlsx", header=7).drop("Unnamed: 1", axis=1)
+import dictionary
+import csv
+ 
 addresses = []
 edges = {}
 
-for idx, address in enumerate(df.columns):
-    # skip label column
-    if idx == 0:
-        continue
-    i = idx-1
-    addresses.append({'id': i, 'address': address})
-    edges[i] = {}
-    for j in range(1, i+1):
-        weight = df.iat[i, j]
-        print([i, j, weight])
-        edges[i][j] = {'weight': weight}
+def main(df: csv.DictReader[str]):
+    for idx, address in enumerate(df.fieldnames):
+        # skip label column
+        if idx == 0:
+            continue
+        i = idx-1
+        addresses.append({'id': i, 'address': address})
+        edges[i] = {}
+        for j in range(1, i+1):
+            weight = df[i][j]
+            print([i, j, weight])
+            edges[i][j] = weight
 
-print(addresses)
+    print(addresses)
 
-g = nx.Graph(edges)
+    print 
+
+# opening the CSV file
+with open("distance_table.csv", mode ='r') as file:    
+    # reading the CSV file
+    df = csv.DictReader(file)
+    main(df)
