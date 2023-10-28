@@ -20,14 +20,14 @@ class Dictionary(Generic[KT,VT]):
     def __str__(self):
         result = '{'
         for e in sorted(self.entries, key=lambda e: e.key):
-            result += f',\n\r{e.key}: "{e.value}"'
+            result += f'\n\r    {e.key}: "{e.value}",'
         result += '\n}'
         return result
     
     def __getitem__(self, key: KT) -> VT:
         for e in self._get_bucket(key):
             if e.key == key:
-                return e
+                return e.value
 
     def __setitem__(self, key: KT, value: VT):
         bucket = self._get_bucket(key)
@@ -37,7 +37,7 @@ class Dictionary(Generic[KT,VT]):
         else:
             for i,e in enumerate(bucket):
                 if e.key == key: 
-                    bucket[i] = value; 
+                    bucket[i].value = value; 
                     return
             bucket.append(Entry(key, value))
             
