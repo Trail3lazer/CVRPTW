@@ -1,15 +1,9 @@
-from typing import List, TypeVar, Generic
+from typing import List, Generic
+from models import KT, VT, Entry
 
-KT = TypeVar('KT')
-VT = TypeVar('VT')
-
-class Entry(Generic[KT,VT]):
-    key: KT
-    value: VT
-    
 class Dictionary(Generic[KT,VT]): 
     def __init__(self, capacity=7):
-        self._map: List[List[Entry[KT,VT]]] = capacity * [None]
+        self._map: List[List[Entry[KT,VT]]] = [[] for i in range(0,capacity)]
     
     @property
     def entries(self) -> List[Entry[KT,VT]]:
@@ -22,6 +16,13 @@ class Dictionary(Generic[KT,VT]):
     @property
     def keys(self) -> List[KT]:
         return [e.key for b in self._map if b for e in b]
+    
+    def __str__(self):
+        result = '{'
+        for e in sorted(self.entries, key=lambda e: e.key):
+            result += f',\n\r{e.key}: "{e.value}"'
+        result += '\n}'
+        return result
     
     def __getitem__(self, key: KT) -> VT:
         for e in self._get_bucket(key):
@@ -44,8 +45,11 @@ class Dictionary(Generic[KT,VT]):
         return len(self.entries)
     
     def __contains__(self, key: KT):
-        entry = self[key]
-        return bool(entry)
+        try:
+            self[key]
+            return True
+        except:
+            return False
         
     def __delitem__(self, key: KT):
         b = self._get_bucket(key)
@@ -54,17 +58,19 @@ class Dictionary(Generic[KT,VT]):
                 b[i] = None
     
     def _bucket_idx(self, key: KT):
-        return len(self._map) % hash(key)
+        #if key == 0: return 0
+        return hash(key) % len(self._map)
     
     def _get_bucket(self, key: KT):
-        return self._map[self._bucket_idx(key)]
+        idx = self._bucket_idx(key)
+        return self._map[idx]
     
     def _grow(self):
-        cur_cap = self.len(self._map)
+        cur_cap = len(self._map)
         capacity = self._next_prime(cur_cap)
-        old = self.entries
-        self._map = capacity * [None]
-        for e in [b for b in self._map]:
+        old = self.entries #this does not create a reference issue because entries returns a new list
+        self._map = [[] for i in range(0,capacity)]
+        for e in [e for b in self._map for e in b]:
             self[e.key] = e.value
     
     def _next_prime(self, current_capacity: int):
@@ -77,7 +83,7 @@ class Dictionary(Generic[KT,VT]):
         divisor = 2
         inc = 1
         while divisor**2 <= n:
-            if n % divisor is 0: return False
+            if n % divisor == 0: return False
             divisor = divisor+inc
             inc = 2
         return n > 1
