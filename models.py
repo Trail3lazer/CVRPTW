@@ -4,6 +4,13 @@ from datetime import datetime
 
 
 
+# Simpler print format for datetimes
+def __strfdatetime(value):
+    if not value: return None
+    return value.strftime("%Y-%m-%D %H:%M:%S")
+
+
+
 # setup key value type vars
 KT = TypeVar('KT')
 VT = TypeVar('VT')
@@ -33,6 +40,8 @@ class Package:
     location_id: int
     package_weight: str
     notes: str
+    status: DeliveryStatus
+    deadline: datetime
         
     # Simpler print format for fields, excludes dataclass auto properties.
     def __str__(self):
@@ -50,21 +59,26 @@ class Location:
     city: str
     state: str
     postal_code: str
-    status: DeliveryStatus
-    deadline: datetime
-    delivery_time: datetime
-    stop_number: int
-    truck: int
     package_ids: List[int]
-    
-    # Simpler print format for datetimes
-    def _strfdatetime(self, value):
-        if not self.delivery_time: return None
-        return value.strftime("%Y-%m-%D %H:%M:%S")
     
     # Simpler print format for fields, excludes dataclass auto properties.
     def __str__(self):
         fieldlist = asdict(self)
-        fieldlist["deadline"] = self._strfdatetime(self.deadline)
-        fieldlist["delivery_time"] = self._strfdatetime(self.delivery_time)
+        fieldlist["deadline"] = __strfdatetime(self.deadline)
         return f"{fieldlist}"
+
+
+@dataclass
+class Delivery:
+    delivery_time: datetime
+    route_index: int
+    truck: int
+    location_id: int
+    package_ids: List[int]
+    
+    # Simpler print format for fields, excludes dataclass auto properties.
+    def __str__(self):
+        fieldlist = asdict(self)
+        fieldlist["delivery_time"] = __strfdatetime(self.delivery_time)
+        return f"{fieldlist}"
+    

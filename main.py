@@ -1,24 +1,11 @@
 
 # Studend ID: 010771776
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List
 from hash_table import Dictionary
 from models import Location, Package
 from datalayer import get_data
-
-# Setup global constants.
-DRIVERS = 2
-MPH = 18
-MAX_LOAD = 16
-TRUCKS = [[],[7,8,17,19,20,21],[11,13,15,24]]
-
-
-# Setup global variables.
-current_time = datetime.today().replace(hour = 8, 
-                                      minute = 0, 
-                                      second = 0, 
-                                      microsecond = 0)
 
 
 
@@ -44,72 +31,84 @@ def calc_distance(matrix: List[List[float]], route: List[int]):
 
 
 
-# Find the nearest location that's on the truck's schedule and hasn't been visited yet.
-# Having a separate method reduces nesting and reading complexity.
-def get_nearest(location_id: int, 
-                truck_schedule: List[int], 
-                locations: Dictionary[int, Location],
-                matrix: List[List[float]]):
-    nearestId,min = None,float("inf")
-    for id, weight in enumerate(matrix[location_id]):
-        if id not in truck_schedule: continue
-        if weight < min:
-            nearestId = id
-            min = weight
-    return nearestId
-
-
-
 def set_location_col_to_inf(locationId: int, weights: List[List[float]]):
     inf = float("inf")
     for l in weights:
         l[locationId] = inf
 
-def main():
-    locations, matrix, packages = get_data()
-    
-    address_count = len(locations)
-    for l in sorted(locations.values, key=lambda e: e.location_id):
-        print(f'{{ location: {l.location_id}, zip: {l.postal_code}, package: {l.package_ids} }}')
+
+
+def get_delivered(locations: Dictionary[int, Location]):
+    return [d for d in locations if d.delivery_time is not None]
+
+
+
+def route_load(start: int, load: List[int], matrix: List[List[float]]):
+    current = start
+    route = [start]
+    cost = 0
+    while 0 < len(load):
+        next_location = None
+        closest_dist = float("inf")
         
-    groups = [[13,14,15,16,19,20,21],[3,18,36,38],[6,25,26,28,32]]
-    
-    initial_loads = [[],[],[]]
-    truck_loads = [[],[],[]]
-    
-    
-    for g in groups:
-        for p_id in g:
-            package_location_id = packages[p_id].location_id
-            for i in range(len(initial_loads)):
-                if package_location_id not in initial_loads[i]:
-                    initial_loads[i].append(package_location_id)
-                    break
-    
-    for p in packages.values:
-        already_stored = False
-        for t in initial_loads:
-            if p.location_id in t:
-                already_stored = True
-                break
-            
-        if already_stored: continue
+        for other in load:
+            if other is None: continue
+            distance = matrix[current][other]
+            if closest_dist > distance:
+                closest_dist = distance
+                next_location = other
         
-        for i,t in enumerate(initial_loads):
-            matched = None
-            for l_id in t:
-                if locations[l_id].postal_code == locations[p.location_id].postal_code:
-                    truck_loads[i].append(p.location_id)
-                    break
+        assert next_location is not None
+        
+        cost += closest_dist
+        route.append(next_location)
+        load.remove(next_location)
+        current = next_location
+        
+    return route, cost
+
+
+
+MPH = 18
+
+def plan_truck_schedule(schedule: List[List[int]], 
+                        start_time: datetime, 
+                        matrix: List[List[float]]):
+    routes = []
+    time = start_time
+    distance = float(0)
+    last_location = 0
     
-    print(initial_loads, truck_loads)
-    """
-    delivered = [d for d in locations if d.delivery_time is not None]
-    while len(delivered) < address_count:
-        locationId = 0
-        load = 0
-        route = [locationId]
-        locations[locationId].delivery_time = current_time
-        delivered = [d for d in locations if d.delivery_time is not None]
-    """
-main()
+    while 0 < len(schedule):
+        path, cost = route_load(last_location, schedule.pop(), matrix)
+        routes.append(path)
+        last_location = path[-1]
+        distance += cost
+        time += timedelta(hours = (cost / MPH))
+        
+    return routes, time, distance
+
+
+
+locations, matrix, packages = get_data()
+
+earliest_start_time = datetime.today().replace(hour = 8, 
+                                      minute = 0, 
+                                      second = 0, 
+                                      microsecond = 0)
+truck2 = [[3,23,10],[0],[17,14,7,13,1,6,19,8,12,25,2],[0],[20,21]]
+route2, end_time2, miles2 = plan_truck_schedule(truck2, earliest_start_time, matrix)
+print(f'\ntruck2: \n    route: {route2}\n    end_time: {end_time2}\n    miles_traveled: {miles2}\n')
+
+later_start_time = earliest_start_time.replace(hour=9, minute=5)
+truck1_locations = [[24,26,22,4,11,5,18,15,9]]
+route1, end_time1, miles1 = plan_truck_schedule(truck1_locations, later_start_time, matrix)
+print(f'\ntruck1: \n    route: {route1}\n    end_time: {end_time1}\n    miles_traveled: {miles1}\n')
+
+print(f'\ntotals: \n    end_time: {max(end_time1, end_time2)}\n    miles_traveled: {miles1 + miles2}\n')
+
+'''
+    [[0, 20, 21, 24, 26, 22, 17, 4, 11, 5, 18, 15, 14, 13, 7, 1, 6, 19, 8, 12, 25, 2, 9, 3, 23, 10]]
+    2023-10-28 10:39:20
+    47.8
+'''

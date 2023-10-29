@@ -27,11 +27,6 @@ def __build_locations(line: List[str]):
                                 city = None, 
                                 state = None, 
                                 postal_code = None,
-                                status = DeliveryStatus.at_hub,
-                                deadline = None,
-                                delivery_time = None,
-                                stop_number = None, 
-                                truck = None,
                                 package_ids = [])
     return locations
 
@@ -102,12 +97,13 @@ def __strp_deadline(value: str, today: date, eod: time):
 
 
 # Extracted logic from __add_packages to reduce nesting
-def __build_package(location_id: int, line: List[str]):
-    return Package(
-                package_id = int(line[0]), 
-                location_id = location_id, 
-                package_weight = line[6], 
-                notes = line[7])
+def __build_package(location_id: int, line: List[str], today:date, eod:time):
+    return Package(package_id = int(line[0]), 
+                   location_id = location_id, 
+                   package_weight = line[6], 
+                   notes = line[7],
+                   status=DeliveryStatus.at_hub,
+                   deadline=__strp_deadline(line[5], today, eod))
 
 
 
@@ -131,16 +127,11 @@ def __add_packages_to_locations(locations: Dictionary[int, Location]):
             address = str(line[1])
             for location in locations.values:
                 if address == location.address:
-                    package = __build_package(location.location_id, line)
+                    package = __build_package(location.location_id, line, today, eod)
                     packages[package.package_id] = package
                     
                     #TODO Make locations immutable
                     location.package_ids.append(package.package_id)
-                    
-                    # Update location deadline if package has earlier delivery deadline.
-                    deadline = __strp_deadline(line[5], today, eod)
-                    if not location.deadline or deadline < location.deadline:
-                        location.deadline = deadline
                     
                     city = line[2]
                     state = line[3]
