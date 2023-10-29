@@ -5,7 +5,7 @@ from datetime import datetime
 
 
 # Simpler print format for datetimes
-def __strfdatetime(value):
+def strfdatetime(value):
     if not value: return None
     return value.strftime("%Y-%m-%D %H:%M:%S")
 
@@ -27,6 +27,13 @@ class Entry(Generic[KT,VT]):
 
 
 # Enum like class used instead of enum because it prints cleaner.
+class StopReason():
+    loading = "loading truck"
+    delivery = "delivery"
+
+
+
+# Enum like class used instead of enum because it prints cleaner.
 class DeliveryStatus():
     at_hub = "at the hub"
     en_route = "en route"
@@ -41,7 +48,9 @@ class Package:
     package_weight: str
     notes: str
     status: DeliveryStatus
-    deadline: datetime
+    delivery_time: datetime
+    earliest: datetime
+    latest: datetime
         
     # Simpler print format for fields, excludes dataclass auto properties.
     def __str__(self):
@@ -60,25 +69,26 @@ class Location:
     state: str
     postal_code: str
     package_ids: List[int]
+    earliest: datetime
+    latest: datetime
     
     # Simpler print format for fields, excludes dataclass auto properties.
     def __str__(self):
         fieldlist = asdict(self)
-        fieldlist["deadline"] = __strfdatetime(self.deadline)
+        fieldlist["deadline"] = strfdatetime(self.deadline)
         return f"{fieldlist}"
 
 
 @dataclass
-class Delivery:
-    delivery_time: datetime
-    route_index: int
-    truck: int
-    location_id: int
-    package_ids: List[int]
+class Stop:
+    stop_time: datetime
+    travel_distance: float
+    location_id: Location
+    reason: str
     
     # Simpler print format for fields, excludes dataclass auto properties.
     def __str__(self):
         fieldlist = asdict(self)
-        fieldlist["delivery_time"] = __strfdatetime(self.delivery_time)
+        fieldlist["delivery_time"] = strfdatetime(self.stop_time)
         return f"{fieldlist}"
     

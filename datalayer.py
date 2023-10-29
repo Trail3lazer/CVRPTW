@@ -1,6 +1,7 @@
+
+import csv
 from typing import List
 from datetime import datetime, date, time
-import csv
 from hash_table import Dictionary
 from models import Location, Package, DeliveryStatus
 
@@ -96,17 +97,6 @@ def __strp_deadline(value: str, today: date, eod: time):
 
 
 
-# Extracted logic from __add_packages to reduce nesting
-def __build_package(location_id: int, line: List[str], today:date, eod:time):
-    return Package(package_id = int(line[0]), 
-                   location_id = location_id, 
-                   package_weight = line[6], 
-                   notes = line[7],
-                   status=DeliveryStatus.at_hub,
-                   deadline=__strp_deadline(line[5], today, eod))
-
-
-
 def __add_packages_to_locations(locations: Dictionary[int, Location]):
     # Respecting immutable parameters
     updated_locations = Dictionary[int, Location]()
@@ -124,22 +114,39 @@ def __add_packages_to_locations(locations: Dictionary[int, Location]):
         
         reader = csv.reader(csv_file)
         for line in reader:
+            # Create location details that can be overridden in special cases
+            package_id = int(line[0])
             address = str(line[1])
+            city = line[2]
+            state = line[3]
+            postal_code = line[4]
+            earliest = eod
+            latest = __strp_deadline(line[5], today, eod)
+            
+            # Override incorrect address details to correct ones 
+            # and delay the package.
+            if package_id == 9:
+                address = "410 S State St"
+                city = "Salt Lake City"
+                state = "UT"
+                postal_code = "84111"
+                earliest = time(10,20)
+          
+            # Find matching location for address
             for location in locations.values:
                 if address == location.address:
-                    package = __build_package(location.location_id, line, today, eod)
+                    package = Package(package_id, location.location_id, line[6], 
+                                      line[7], DeliveryStatus.at_hub,
+                                      datetime.combine(today,earliest), latest)
                     packages[package.package_id] = package
                     
-                    #TODO Make locations immutable
+                    # Set location address details.
+                    # TODO Make locations immutable
+                    # TODO Handle locations with the same address but different 
+                    #      cities, states, or zip codes.
+                    
                     location.package_ids.append(package.package_id)
                     
-                    city = line[2]
-                    state = line[3]
-                    postal_code = line[4]
-                    
-                    # Set location address details if they are not already set.
-                    # TODO Handle locations with the same address but different 
-                    #      cities, states, or postal_codes.
                     if not location.city and city:
                         location.city = city
                     
@@ -148,6 +155,12 @@ def __add_packages_to_locations(locations: Dictionary[int, Location]):
                         
                     if not location.postal_code and postal_code:
                         location.postal_code = postal_code
+                        
+                    if package.earliest > location.earliest:
+                        location.earliest = package.earliest
+                        
+                    if package.latest < location.latest:
+                        location.latest = package.latest
                     
                     # Add copied location to copied hashmap
                     updated_locations[location.location_id] = location
