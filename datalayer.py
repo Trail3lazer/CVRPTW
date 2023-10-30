@@ -28,6 +28,8 @@ def __build_locations(line: List[str]):
                                 city = None, 
                                 state = None, 
                                 postal_code = None,
+                                earliest = datetime.min,
+                                latest = datetime.max,
                                 package_ids = [])
     return locations
 
@@ -136,7 +138,7 @@ def __add_packages_to_locations(locations: Dictionary[int, Location]):
             for location in locations.values:
                 if address == location.address:
                     package = Package(package_id, location.location_id, line[6], 
-                                      line[7], DeliveryStatus.at_hub,
+                                      line[7], DeliveryStatus.at_hub, None,
                                       datetime.combine(today,earliest), latest)
                     packages[package.package_id] = package
                     
