@@ -83,7 +83,7 @@ class Location:
 class Stop:
     stop_time: datetime
     travel_distance: float
-    location_id: Location
+    location: Location
     reason: str
     
     # Simpler print format for fields, excludes dataclass auto properties.

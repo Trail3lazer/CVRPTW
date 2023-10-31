@@ -2,6 +2,7 @@
 import csv
 from typing import List
 from datetime import datetime, date, time
+from globals import END_OF_DAY, START_OF_DAY, TODAY
 from hash_table import Dictionary
 from models import Location, Package, DeliveryStatus
 
@@ -85,27 +86,22 @@ def __get_locations():
 
 
 # Extracted logic from __add_packages to reduce nesting and redundancy
-def __strp_deadline(value: str, today: date, eod: time):
+def __strp_deadline(value: str):
     
     # Default deadline to eod.
-    deadline = datetime.combine(today, eod)
+    deadline = END_OF_DAY
     
     # If value is valid and not EOD, parse time and combine with today's date.
     if value.strip() and value != "EOD":
         deadline_time = datetime.strptime(value, "%I:%M %p")
-        deadline=datetime.combine(today, deadline_time.time())
+        deadline = datetime.combine(TODAY, deadline_time.time())
         
     return deadline
 
 
 
-def __add_packages_to_locations(locations: Dictionary[int, Location]):
-    # Respecting immutable parameters
-    updated_locations = Dictionary[int, Location]()
-    
-    # Create static variables outside the loop to reduce operations.
-    today = date.today() 
-    eod = time(17,0)
+
+def __add_packages_to_locations(locations: Dictionary[int, Location]): # TODO Make locations immutable 
     
     # Create hashmap to hold packages.
     packages = Dictionary[int, Package]()
@@ -122,8 +118,8 @@ def __add_packages_to_locations(locations: Dictionary[int, Location]):
             city = line[2]
             state = line[3]
             postal_code = line[4]
-            earliest = eod
-            latest = __strp_deadline(line[5], today, eod)
+            earliest = START_OF_DAY
+            latest = __strp_deadline(line[5])
             
             # Override incorrect address details to correct ones 
             # and delay the package.
@@ -132,18 +128,17 @@ def __add_packages_to_locations(locations: Dictionary[int, Location]):
                 city = "Salt Lake City"
                 state = "UT"
                 postal_code = "84111"
-                earliest = time(10,20)
+                earliest = datetime.combine(TODAY.date(),time(10,20))
           
             # Find matching location for address
             for location in locations.values:
                 if address == location.address:
                     package = Package(package_id, location.location_id, line[6], 
                                       line[7], DeliveryStatus.at_hub, None,
-                                      datetime.combine(today,earliest), latest)
+                                      earliest, latest)
                     packages[package.package_id] = package
                     
                     # Set location address details.
-                    # TODO Make locations immutable
                     # TODO Handle locations with the same address but different 
                     #      cities, states, or zip codes.
                     
@@ -164,14 +159,11 @@ def __add_packages_to_locations(locations: Dictionary[int, Location]):
                     if package.latest < location.latest:
                         location.latest = package.latest
                     
-                    # Add copied location to copied hashmap
-                    updated_locations[location.location_id] = location
-                    
                     # Since we found a matching location, 
                     # we don't need to continue through the rest. 
                     # TODO Handle duplicate locations
                     break
-    return packages, updated_locations
+    return packages, locations
 
 
 

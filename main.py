@@ -2,79 +2,87 @@
 # Studend ID: 010771776
 
 from datetime import datetime, timedelta
+import json
 from typing import List,Any
+from globals import END_OF_DAY, MPH, SECONDS_IN_DAY, START_OF_DAY
 from hash_table import Dictionary
 from models import DeliveryStatus, Location, Package, Stop, StopReason, strfdatetime
 from datalayer import get_data
 
 locations, matrix, packages = get_data()
-start_of_day = datetime.today().replace(hour = 8, minute = 0, 
-                                        second = 0, microsecond = 0)
-end_of_day = start_of_day.replace(hour=17)
-MPH = 18
-log_obj = Dictionary[str, list[str]]()
+log_obj: dict[str, list[str]] = {}
 
-# Scope variables that should not be global
-def get_avg_distance():
-    last_row = matrix[-1].copy()
-    last_row.pop()
-    return sum(last_row)/len(last_row)
-avg_distance = get_avg_distance()
-
-
+# print(packages)
 
 def log(location: Location, package: Package, timestamp: datetime, truck_id: int):
-    message = Dictionary[str, str]()
-    message["Package ID"] = package.package_id
-    message["Truck ID"] = truck_id
-    message["Location Name"] = location.name
-    message["Location Address"] = f'{location.address}, {location.city}, {location.state} {location.postal_code}'
-    message["Status"] = package.status
-    log_obj[strfdatetime(timestamp)].append(str(message))
+    message = {
+        "Package ID":package.package_id, 
+        "Truck ID": truck_id,
+        "Status": package.status,
+        "Location Name": location.name,
+        "Location Address": f'{location.address}, {location.city}, {location.state} {location.postal_code}'
+    }
+    key = strfdatetime(timestamp)
+    time_logs = None
+    if key in log_obj.keys():
+        time_logs = log_obj[key]
+    else:
+        time_logs = []
+        log_obj[key] = time_logs
+    time_logs.append(str(message))
 
 
 
-def update_packages(updates: Dictionary[str, Any], location: Location, 
-                    package_ids: List[Package], timestamp: datetime, truck_id: int):
+def update_packages(status: str, location: Location, 
+                    package_ids: List[int], timestamp: datetime, truck_id: int):
     
     for p_id in package_ids:
         package = packages[p_id]
-        for e in updates.entries:
-            package[e.key] = e.value
+        if status == DeliveryStatus.delivered:
+            package.delivery_time = timestamp
+        package.status = status
         log(location,package,timestamp, truck_id)
     return package_ids
 
 
 
-# Determine the rank of neighbor by distance and time requirements
-def calc_piority(distance: float, avg_distance: float, 
-                      cur_time: datetime, earliest: datetime, latest: datetime):
+# Determine the priority of neighbor by distance and time requirements
+def calc_piority(distance: float, cur_time: datetime, earliest: datetime, latest: datetime):
     
     est_travel_hours = distance / MPH
     est_arrival_time = cur_time + timedelta(hours = (est_travel_hours))
+    est_delivery = est_arrival_time
     
-    # If would arrive before min location time, set estimated arrival to location min time
-    if(est_arrival_time < earliest):
-        est_arrival_time = earliest
+    # If would arrive before min location time, set estimated delivery to location min time
+    if(est_delivery < earliest):
+        est_delivery = earliest
     
-    travel_seconds = (est_arrival_time - cur_time).total_seconds()
-    deadline_seconds = (latest - est_arrival_time).total_seconds()
+    travel = (est_arrival_time - cur_time).total_seconds()
+    delivery = (est_delivery - cur_time).total_seconds()-travel
+    deadline = (latest - cur_time).total_seconds()-travel
     
-    # Make priority a balance between delivery deadlines and travel distance.
+    # Make priority a balance between delivery deadlines, delays and travel time/distance.
     # Lower numbers are higher priority.
-    priority = distance-(avg_distance/travel_seconds)-(avg_distance/deadline_seconds)
+    priority = (delivery+deadline) / travel
     
-    return priority, est_arrival_time, distance
+    return priority, est_delivery
     
             
 
 # Given an array of locations, determine K-Nearest Neighbors path
 def route_load(start_location_id: int, start_time: datetime, truck_id: int, load: List[int]):
     
+    start_location = locations[start_location_id]
+    for l in sorted(load):
+        loaded_location = locations[l]
+        update_packages(DeliveryStatus.en_route, start_location, 
+                        loaded_location.package_ids, start_time, 
+                        truck_id)
+    
     # Set route starting values.
     current_id = start_location_id
-    route = []
-    total_route_distance = 0
+    route: List[Stop] = []
+    total_route_distance = float(0)
     cur_time = start_time
     
     # Repeat untill load is empty
@@ -85,21 +93,18 @@ def route_load(start_location_id: int, start_time: datetime, truck_id: int, load
         highest_priority: float = float("inf")
         best_time: datetime = datetime.max
         closest_dist: float = float("inf")
-        distances = matrix[current_id]
         
         # Loop through other package locations loaded on the truck.
         for other_id in load:
-            assert other_id is not None
+            if(other_id == current_id): continue
             
             other = locations[other_id]
-            
+            distance = matrix[current_id][other_id]
             (other_priority, 
-             est_arrival_time, 
-             distance) = calc_piority(distances[other_id],
-                                           avg_distance,
+             est_arrival_time) = calc_piority(distance,
                                            cur_time,
-                                           other.earliest or start_of_day, 
-                                           other.latest or datetime.max)
+                                           other.earliest or START_OF_DAY, 
+                                           other.latest or END_OF_DAY)
             
             # find the highest priority (min) by comparing each item in the load.
             if other_priority < highest_priority:
@@ -122,11 +127,7 @@ def route_load(start_location_id: int, start_time: datetime, truck_id: int, load
         route.append(Stop(best_time, closest_dist, next_location, reason))
         
         # Update location packages to delivered
-        package_updates = Dictionary[str, Any]()
-        package_updates['status'] = DeliveryStatus.delivered
-        package_updates['delivery_time'] = cur_time
-        
-        update_packages(package_updates, next_location, 
+        update_packages(DeliveryStatus.delivered, next_location, 
                         next_location.package_ids, cur_time, 
                         truck_id)
         
@@ -139,27 +140,31 @@ def route_load(start_location_id: int, start_time: datetime, truck_id: int, load
 
 def plan_truck_schedule(truck_id:int, schedule: List[List[int]], start_time: datetime):
     routes = []
-    time = start_time
+    current_time = start_time
     distance = float(0)
     last_location = 0
     
     while 0 < len(schedule):
-        path, cost = route_load(last_location, start_time, truck_id, schedule.pop())
-        routes.append(path)
-        last_location = path[-1]
-        distance += cost
+        route, end_time, miles = route_load(last_location, start_time, truck_id, schedule.pop())
+        routes.append(route)
+        last_location = route[-1].location.location_id
+        distance += miles
+        current_time = end_time
         
-    return routes, time, distance
+    return routes, current_time, distance
 
 
 
-truck2 = [[3,23,10],[0],[17,14,7,13,1,6,19,8,12,25,2],[0],[20,21]]
-route2, end_time2, miles2 = plan_truck_schedule(2, truck2, start_of_day)
-print(f'\ntruck2: \n    route: {route2}\n    end_time: {end_time2}\n    miles_traveled: {miles2}\n')
+truck2 = [[i for i in range(21)]] #[[3,23,10],[0],[17,14,7,13,1,6,19,8,12,25,2],[0],[20,21]]
+route2, end_time2, miles2 = plan_truck_schedule(2, truck2, START_OF_DAY)
+route = json.dumps(log_obj, indent=2)
+print(f'\ntruck2: \n    route: {route}\n    end_time: {end_time2}\n    miles_traveled: {miles2}\n')
 
-later_start_time = start_of_day.replace(hour=9, minute=5)
+'''
+later_start_time = START_OF_DAY.replace(hour=9, minute=5)
 truck1_locations = [[24,26,22,4,11,5,18,15,9]]
-route1, end_time1, miles1 = plan_truck_schedule(truck1_locations, later_start_time)
+route1, end_time1, miles1 = plan_truck_schedule(1, truck1_locations, later_start_time)
 print(f'\ntruck1: \n    route: {route1}\n    end_time: {end_time1}\n    miles_traveled: {miles1}\n')
 
 print(f'\ntotals: \n    end_time: {max(end_time1, end_time2)}\n    miles_traveled: {miles1 + miles2}\n')
+'''
