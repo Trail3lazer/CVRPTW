@@ -46,12 +46,17 @@ def update_packages(status: str, location: Location,
 
 
 
-def calculate_truck_load(location_ids: List[int]):
-    package_count = 0
-    for l_id in location_ids:
-        location = locations[l_id]
-        package_count += len(location.package_ids)
-    return package_count
+def calculate_truck_load(truck_loads: List[List[int]]):
+    load_counts = []
+    for location_ids in truck_loads:
+        
+        package_count = 0
+        for l_id in location_ids:
+            location = locations[l_id]
+            package_count += len(location.package_ids)
+        load_counts.append(package_count)
+        
+    return load_counts
         
 
 
@@ -154,10 +159,9 @@ def plan_truck_schedule(truck_id:int, schedule: List[List[int]], start_time: dat
 
 
 
-truck2 = [[3,23,10],[0],[17,14,7,13,1,6,19,8,12,25,2,20,21]]
+truck2 = [[3,23,10],[0],[17,14,7,13,1,6,19,8,12,25,2],[0],[20,21]]
 
-print(("Truck2, 1st load",calculate_truck_load(truck2[-1])))
-print(("Truck2, 2nd load",calculate_truck_load(truck2[0])))
+print(("Truck2 trip packages amounts:",calculate_truck_load(truck2)))
 
 route2, end_time2, miles2 = plan_truck_schedule(2, truck2, START_OF_DAY)
 route = json.dumps(log_obj, indent=2)
@@ -165,7 +169,7 @@ print(f'\ntruck2: \n    end_time: {end_time2}\n    miles_traveled: {miles2}\n')
 
 later_start_time = START_OF_DAY.replace(hour=9, minute=5)
 truck1 = [[24,26,22,4,11,5,18,15,9]]
-print(("Truck1, 1st load",calculate_truck_load(truck1[0])))
+print(("Truck1 trip packages amounts:",calculate_truck_load(truck1)))
 route1, end_time1, miles1 = plan_truck_schedule(1, truck1, later_start_time)
 print(f'\ntruck1: \n   end_time: {end_time1}\n    miles_traveled: {miles1}\n')
 
