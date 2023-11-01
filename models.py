@@ -1,48 +1,46 @@
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from typing import TypeVar, Generic, List
 from datetime import datetime
 
 
-
-# Simpler print format for datetimes
 def strfdatetime(value):
-    if not value: return None
-    return value.strftime("%Y-%m-%D %H:%M:%S")
+    """Simpler print format for datetimes. O[1]
+
+    Args:
+        value (datetime): The datetime needing to be converted to string.
+
+    Returns:
+        str: The datetime formatted like hh:mm:ss
+    """
+
+    if not value:
+        return None
+    return value.strftime("%H:%M:%S")
 
 
-
-# setup key value type vars
-KT = TypeVar('KT')
-VT = TypeVar('VT')
+KT = TypeVar("KT")
+VT = TypeVar("VT")
 
 
-
-# Use dataclass property to generate default constructor
-# for class fields.
 @dataclass
-class Entry(Generic[KT,VT]):
+class Entry(Generic[KT, VT]):
     key: KT
     value: VT
 
 
-
-# Enum like class used instead of enum because it prints cleaner.
-class StopReason():
+class StopReason:
     loading = "loading truck"
     delivery = "delivery"
 
 
-
-# Enum like class used instead of enum because it prints cleaner.
-class DeliveryStatus():
+class DeliveryStatus:
     at_hub = "at the hub"
     en_route = "en route"
-    delivered = "delivered"    
-
+    delivered = "delivered"
 
 
 @dataclass
-class Package: 
+class Package:
     package_id: int
     location_id: int
     package_weight: str
@@ -51,17 +49,14 @@ class Package:
     delivery_time: datetime
     earliest: datetime
     latest: datetime
-        
-    # Simpler print format for fields, excludes dataclass auto properties.
-    def __str__(self):
-        return f"{asdict(self)}"
 
 
-
-# Put most of the address properties in another object to 
-# make routing easier and reduce redundancy.
+#
 @dataclass
 class Location:
+    """Contains most of the address properties to
+    make routing easier and reduce redundancy."""
+
     location_id: int
     name: int
     address: str
@@ -71,12 +66,6 @@ class Location:
     package_ids: List[int]
     earliest: datetime
     latest: datetime
-    
-    # Simpler print format for fields, excludes dataclass auto properties.
-    def __str__(self):
-        fieldlist = asdict(self)
-        fieldlist["deadline"] = strfdatetime(self.deadline)
-        return f"{fieldlist}"
 
 
 @dataclass
@@ -85,10 +74,3 @@ class Stop:
     travel_distance: float
     location: Location
     reason: str
-    
-    # Simpler print format for fields, excludes dataclass auto properties.
-    def __str__(self):
-        fieldlist = asdict(self)
-        fieldlist["delivery_time"] = strfdatetime(self.stop_time)
-        return f"{fieldlist}"
-    
