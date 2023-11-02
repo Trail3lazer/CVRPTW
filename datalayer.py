@@ -3,11 +3,19 @@ from typing import List
 from datetime import datetime, date, time
 from globals import END_OF_DAY, START_OF_DAY, TODAY
 from hash_table import Dictionary
-from models import Location, Package, DeliveryStatus
+from models import Location, Package, DeliveryStatus, PackageTimeline
 
 
-# Extracted logic from get_locations to reduce nesting
+
 def __build_locations(line: List[str]):
+    '''Builds a hash table of locations from the first row of the distances csv file O(n)
+
+    Args:
+        line: The first row of the distances csv file
+    Returns:
+        locations: The locations parsed from the csv file
+
+    '''
     locations = Dictionary[int, Location]()
 
     # Enumerate location headers to create ids.
@@ -33,9 +41,10 @@ def __build_locations(line: List[str]):
                 city=city_state_zip[0],
                 state=state_zip[0],
                 postal_code=state_zip[1],
+                package_ids=[],
                 earliest=START_OF_DAY,
                 latest=END_OF_DAY,
-                package_ids=[],
+                truck_id=None,
             )
             continue
 
@@ -54,12 +63,15 @@ def __build_locations(line: List[str]):
     return locations
 
 
+
 def __get_locations():
-    """Reads data from the distances csv file then returns a hash table of locations and a matrix of distances
+    '''Reads data from the distances csv file then returns a hash table of locations and a matrix of distances O(n)
 
     Returns:
-        _type_: _description_
-    """
+        locations: The locations parsed from the csv file
+        matrix: The matrix of distances between locations
+
+    '''
 
     # Instantiate return objects in outer method scope.
     locations = None
@@ -106,8 +118,16 @@ def __get_locations():
     return locations, matrix
 
 
-# Extracted logic from __add_packages to reduce nesting and redundancy
+
 def __strp_deadline(value: str):
+    '''Parses a deadline string into a datetime object O(1)
+    
+    Args:
+        value: The deadline string to parse
+    Returns:
+        deadline: The parsed deadline
+
+    '''
     # Default deadline to eod.
     deadline = END_OF_DAY
 
@@ -119,9 +139,18 @@ def __strp_deadline(value: str):
     return deadline
 
 
-def __add_packages_to_locations(
-    locations: Dictionary[int, Location]
-):  # TODO Make locations immutable
+
+def __add_packages_to_locations(locations: Dictionary[int, Location]): 
+    '''Reads data from the packages csv file then adds packages to their respective locations O(n)*O(n) 
+
+    Args:
+        locations: The locations to add packages to
+    Returns:
+        packages: The packages parsed from the csv file
+        locations: The locations that were updated with packages
+
+    ''' 
+    # TODO Make locations immutable
     # Create hashmap to hold packages.
     packages = Dictionary[int, Package]()
 
@@ -139,6 +168,7 @@ def __add_packages_to_locations(
             postal_code = line[4]
             earliest = START_OF_DAY
             latest = __strp_deadline(line[5])
+            at_hub_time = earliest
 
             # Override incorrect address details to correct ones
             # and delay the package.
@@ -153,14 +183,13 @@ def __add_packages_to_locations(
             for location in locations.values:
                 if address == location.address:
                     package = Package(
-                        package_id,
-                        location.location_id,
-                        line[6],
-                        line[7],
-                        DeliveryStatus.at_hub,
-                        None,
-                        earliest,
-                        latest,
+                        package_id = package_id,
+                        location_id = location.location_id,
+                        weight = line[6],
+                        notes = line[7],
+                        earliest = earliest,
+                        latest = latest,
+                        timeline = PackageTimeline(at_hub_time, None, None),
                     )
                     packages[package.package_id] = package
 
@@ -192,8 +221,16 @@ def __add_packages_to_locations(
     return packages, locations
 
 
-# Wraps the file's method flow and the returns results.
+
 def get_data():
+    '''Reads data from the csv files then returns the locations, distance matrix, and packages O(1)
+
+    Returns:
+        locations: The locations parsed from the csv file
+        matrix: The matrix of distances between locations
+        packages: The packages parsed from the csv file
+
+    '''
     locations, matrix = __get_locations()
 
     packages, locations = __add_packages_to_locations(locations)

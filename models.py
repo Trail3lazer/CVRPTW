@@ -1,17 +1,19 @@
 from dataclasses import dataclass
+import enum
+import time
 from typing import TypeVar, Generic, List
 from datetime import datetime
 
 
-def strfdatetime(value):
-    """Simpler print format for datetimes. O[1]
+def strfdatetime(value: datetime):
+    '''Simpler print format for datetimes. O(n)
 
     Args:
         value (datetime): The datetime needing to be converted to string.
-
     Returns:
         str: The datetime formatted like hh:mm:ss
-    """
+
+    '''
 
     if not value:
         return None
@@ -22,10 +24,12 @@ KT = TypeVar("KT")
 VT = TypeVar("VT")
 
 
+
 @dataclass
 class Entry(Generic[KT, VT]):
     key: KT
     value: VT
+
 
 
 class StopReason:
@@ -33,32 +37,41 @@ class StopReason:
     delivery = "delivery"
 
 
-class DeliveryStatus:
-    at_hub = "at the hub"
-    en_route = "en route"
+
+@dataclass
+class PackageTimeline:
+    at_hub: time
+    enroute: time
+    delivered: time
+
+
+
+class DeliveryStatus(enum.Enum):
+    hub = "hub"
+    enroute = "enroute"
     delivered = "delivered"
+
 
 
 @dataclass
 class Package:
     package_id: int
     location_id: int
-    package_weight: str
+    weight: str
     notes: str
-    status: DeliveryStatus
-    delivery_time: datetime
     earliest: datetime
     latest: datetime
+    timeline: PackageTimeline
 
 
-#
+
 @dataclass
 class Location:
     """Contains most of the address properties to
     make routing easier and reduce redundancy."""
 
     location_id: int
-    name: int
+    name: str
     address: str
     city: str
     state: str
@@ -66,6 +79,7 @@ class Location:
     package_ids: List[int]
     earliest: datetime
     latest: datetime
+    truck_id: int = None
 
 
 @dataclass
