@@ -1,0 +1,186 @@
+# this symbol means a comment, not code
+
+Methods or functions will have the following format
+"
+    DECLARE function FUNCTION_NAME(
+        PARAMETER: PARAMETER DEFINITION, 
+        ...
+    ){
+        BODY
+    }
+"
+Pseudo code:
+
+SET locations to a new hash table from the distances table column headers
+    keys are is column index and Location.location_id
+    value type is Location class
+        address and name properties are parsed from the column headers
+        city, state, zip, earliest, and latest come from the packages table rows with matching addresses
+
+SET packages to a new hash table from the packages table
+    keys are Package.package_id
+    value type is Package class with relevant properties pulled from the packages table
+        location_id is populated by matching the package address to a location address
+
+SET matrix to an array of arrays of integers from the distances table
+    the indexes of the array and arrays correspond with the locations.keys
+    the values are pulled from the distances table
+
+SET truck1 to an array of arrays of location_id (integer type).
+    
+    The top level array is the trucks schedule of loads.
+    It does not matter how many loads a truck has on its schedule.
+        The child arrays are truck loads.
+            Each array of location_ids should have no more than 16 related packages.
+            Ensure truck1 has the delayed package locations on it and other nearby packages.
+    
+    Place single item array with the hub location_id in it between each load.
+
+Do the same for truck2
+    Ensure truck2 has all the truck2 packages and "same delivery" packages as well as the wrong address package. Also include other locations that are nearby.
+
+DECLARE function update_package_timelines(
+    location_ids: list of location_ids whose packages we will update,
+    status: timeline status to update (string),
+    timestamp: the time at which the 
+){
+    # This for loop has O(n) because it does not go over the source array more than once.
+    FOR EACH location_id in current_load 
+    {
+        SET location to locations[location_id]
+        FOR EACH package_id in location.package_ids
+        {
+            SET timeline to packages[package_id].timeline
+            SWITCH on status {
+                CASE status equals "enroute"
+                    THEN timeline.enroute = timestamp
+                CASE status equals "delivered"
+                    THEN timeline.delivered = timestamp
+            }
+        }
+    }
+}
+
+
+
+DECLARE function route_load(
+    starting_location_id: the id of the location that the truck starts from (integer),
+    start_time: the time the truck starts this route (datetime),
+    truck_id: the id of the truck carrying the load,
+    load: the list of location_ids in this truck load (Array[integer])
+){
+    # Set route starting values.
+    SET current_id to start_location_id
+    SET route to an empty list
+    SET total_route_distance to 0
+    SET cur_time to start_time
+
+    # Repeat until load is empty O(n*log(n))
+    DO WHILE the length of load is greater than 0 { 
+        # Instantiate variables for comparing other route locations.
+        # This is where the nearest neighbor is temporarily stored while comparing others.
+        SET next_location to null
+        SET best_time to max datetime
+        SET closest_dist to infinity
+
+        # Loop through other package locations loaded on the truck. O(n)
+        FOR EACH other_id in load 
+        {
+            # This prevents comparing the current location with itself
+            if (other_id equals current_id) {
+                continue to the next iteration of the for loop
+            }
+
+            SET distance to matrix[current_id][other_id]
+            SET other to locations[other_id]
+
+            # 18 is the constant MPH that trucks travel
+
+            SET est_travel_hours to distance divided by 18
+            SET est_arrival_time to cur_time plus est_travel_hours
+
+            # If truck would arrive at the location before min location time, set estimated arrival to location min time
+            # This prevents locations from being routed to before their packages can be delivered
+            if est_arrival_time is less than earliest 
+            {
+                SET est_arrival_time to earliest
+            }
+
+            # find the highest priority (min) by comparing each item in the load.
+            # this will change the nearest neighbor if a closer one is found.
+            if best_time is greater than est_arrival_time
+            {
+                SET closest_dist to distance
+                SET best_time to est_arrival_time
+                SET next_location to other
+            }
+        }
+
+        SET total_route_distance to itself plus closest_dist
+        SET cur_time to best_time
+        SET current_id to next_location.location_id
+
+        APPEND next_location to route
+
+        SET location_ids_to_update to new Array[next_location.location_id]
+
+        # Update location packages to delivered
+        CALL update_packages(
+            location_ids_to_update,
+            DeliveryStatus.delivered,
+            cur_time,
+            truck_id,
+        )
+
+        # Remove next location_id from load to reduce subsequent iterations,
+        # prevent duplicate deliveries, and infinite loops.
+        REMOVE next_location.location_id from load
+    }
+
+    return {
+        route: ordered list of locations,
+        cur_time: time the truck finishes,
+        total_route_distance: total distance traveled
+    }
+}
+
+
+
+DECLARE function plan_truck_schedule(
+    truck_id: id of the truck (integer),
+    schedule: list of lists of location_ids (integer),
+    start_time: time the truck starts (datetime)
+){
+    SET routes to an empty array of arrays of location_ids (integer)
+    SET current_time to todays date at 8 AM
+    SET distance to 0
+    SET last_location to 0
+
+    DO WHILE length of schedule is greater than 0 {
+        # current_load = schedule.pop()
+        SET current_load to the last element (Array[integer]) of schedule
+        REMOVE the last element of schedule
+
+        CALL update_package_timelines(current_load, "enroute", current_time)
+
+        SET route_info to route_load(last_location, current_time,
+                                     truck_id, current_load)
+
+        APPEND route to routes
+        SET last_location to last location.location_id of route
+        SET distance to distance plus total_route_distance
+        SET current_time to end_time
+    }
+    
+    return {
+        routes: list of lists of location_ids (Array[Array[integer]]),
+        current_time: time the truck finishes (datetime),
+        distance: total distance traveled (float)
+    }
+}
+
+SET truck1_start_time to today's date at 9:05 AM
+SET truck1_results = plan_truck_schedule(1, truck1, truck1_start_time)
+
+SET truck2_results = plan_truck_schedule(2, truck2, start_time)
+

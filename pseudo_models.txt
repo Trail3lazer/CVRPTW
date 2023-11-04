@@ -1,0 +1,47 @@
+These classes are all data model classes.
+They have auto generated constructors.
+All of their properties are public.
+The properties' have auto generated getter and setter methods.
+The type of each property is placed after a colon.
+All types are nullable.
+
+class Entry with generic types (KT, VT) {
+    key: KT,
+    value: VT
+}
+
+class PackageTimeline {
+    at_hub: time,
+    enroute: time,
+    delivered: time
+}
+
+class Package {
+    package_id: integer,
+    location_id: integer (foreign key of Location.location_id),
+    weight: string,
+    notes: string,
+    earliest: datetime,
+    latest: datetime,
+    timeline: PackageTimeline
+}
+
+class Location {
+    location_id: integer,
+    name: string,
+    address: string,
+    city: string,
+    state: string,
+    postal_code: string,
+    package_ids: List of integer (foreign keys of Package.package_id),
+    earliest: datetime,
+    latest: datetime,
+    truck_id: integer default null
+}
+
+class Stop {
+    stop_time: datetime,
+    travel_distance: float,
+    location: Location,
+    reason: string
+}
