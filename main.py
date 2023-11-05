@@ -12,7 +12,6 @@ from logger import (
 )
 from models import DeliveryStatus, Location, Stop, StopReason
 from datalayer import get_data
-from big_o import big_o,datagen
 
 locations, matrix, packages = get_data()
 
@@ -251,13 +250,12 @@ def main():
     """Main function O(n) Constant: time = 0.0029 (sec)"""
 
     later_start_time = START_OF_DAY.replace(hour=9, minute=5)
-    truck1 = [[24, 26, 22], [0], [4, 14, 11, 5, 18, 15, 9, 2]]
+    truck1 = [[22, 24, 26], [0], [2, 4, 5, 9, 11, 14, 15, 18]]
     route1, t1_end, t1_miles = plan_truck_schedule(1, truck1, later_start_time)
 
-    truck2 = [[17, 7, 13, 1, 6, 19, 8, 12, 25], [0], [3, 23, 10], [0], [20, 21]]
+    truck2 = [[1, 6, 7, 8, 12, 13, 19, 17, 25], [0], [3, 10, 23], [0], [20, 21]]
     route2, t2_end, t2_miles = plan_truck_schedule(2, truck2, START_OF_DAY)
 
-    return
     running = True
     while running:
         user_input = input(
@@ -268,26 +266,23 @@ def main():
             To exit, enter 'X'. 
             :"""
         )
+
         if user_input.lower() == "x":
             running = False
-            continue
         elif user_input.lower() == "t":
             print_package_table()
-            continue
         elif user_input.lower() == "s":
             print_route_distances_and_times(t1_end, t1_miles, t2_end, t2_miles)
-            continue
-
-        input_time = None
-        try:
-            input_time = datetime.strptime(user_input, "%H%M")
-        except ValueError:
-            print(
-                f'Your input of "{user_input}" is not one of the options and is an invalid time format. \nPlease rerun the program to try again. \nExiting...'
-            )
-            break
-
-        print_packages_at_time(input_time)
+        else:
+            input_time = None
+            try:
+                input_time = datetime.strptime(user_input, "%H%M")
+            except ValueError:
+                print(
+                    f'Your input of "{user_input}" is not one of the options and is an invalid time format. \nPlease rerun the program to try again. \nExiting...'
+                )
+                break
+            print_packages_at_time(input_time, packages, locations)
 
 
 def run(func, args):
@@ -309,4 +304,4 @@ def run(func, args):
     
     return result
 
-run(main,None)
+main()

@@ -44,7 +44,7 @@ def log_line(timestamp: datetime, char: str = "—"):
         char: character to use for the line
 
     '''
-    log_event(timestamp, 200*char)
+    log_event(timestamp, 105*char)
 
 
 
@@ -112,7 +112,7 @@ def log(location: Location, package: Package, timestamp: datetime, truck_id: int
 
 
 
-def print_package_table():
+def print_package_table(package_list: List[List[Any]] = event_log):
     '''Prints the log as a table O(n)
     
     Args:
@@ -128,7 +128,7 @@ def print_package_table():
             pass
         return pkg_time
 
-    sorted_list = sorted(event_log, key=sort_key)
+    sorted_list = sorted(package_list, key=sort_key)
     headers_format = build_format_str([9, 2])+log_msg_format
 
     log_headers = ["Timestamp", "ID", "Address", "Deadline", "City", "Zip", "Weight", "Status", "Truck"]
