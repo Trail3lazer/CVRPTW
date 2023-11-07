@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, List
 from globals import START_OF_DAY
 from hash_table import Dictionary
-from models import Location, Package, strfdatetime
+from models import DeliveryStatus, Location, Package, PackageUpdate, strfdatetime
 
 
 event_log = []
@@ -59,21 +59,6 @@ def create_status_description(current_time: datetime, package: Package):
 
     '''
 
-    timeline = package.timeline
-    # If the package has been delivered, return the delivery time.
-    if timeline.delivered != None and timeline.delivered <= current_time:
-        return f"Delivered at {strfdatetime(timeline.delivered)}"
-    
-    # If the package is enroute, return the enroute time.
-    elif timeline.enroute != None and timeline.enroute <= current_time:
-        return f"Enroute at {strfdatetime(timeline.enroute)}"
-    
-    # If the package is at the hub, return at hub.
-    elif timeline.at_hub <= current_time:
-        return "At hub"
-    
-    # Otherwise, package has not arrived at the hub yet.
-    return "Awaiting arrival at hub"
 
 
 
@@ -90,9 +75,26 @@ def create_package_log_message(location: Location, package: Package, timestamp: 
         message: string describing the status of the package
 
     '''
-    status = create_status_description(timestamp, package)
+    status_message = None
+    # If the package has been delivered, return the delivery time.
+    if package.status == DeliveryStatus.delivered:
+        status_message = f"Delivered at {strfdatetime(timestamp)}"
+    
+    # If the package is enroute, return the enroute time.
+    elif package.status == DeliveryStatus.enroute:
+        status_message = f"Enroute at {strfdatetime(timestamp)}"
+    
+    # If the package is at the hub, return at hub.
+    elif package.status == DeliveryStatus.hub:
+        status_message = f"At hub at {strfdatetime(timestamp)}"
+    
+    # Otherwise, package has not arrived at the hub yet.
+    else:
+        status_message = "Delayed on flight"
+    
+
     deadline = strfdatetime(package.latest)
-    message = log_msg_format.format(*[location.address, deadline, location.city, location.postal_code, package.weight, status, str(truck_id)])
+    message = log_msg_format.format(*[location.address, deadline, location.city, location.postal_code, package.weight, status_message, str(truck_id)])
     return message
 
 
@@ -150,7 +152,7 @@ def print_route_distances_and_times(end_time1,miles1,end_time2,miles2):
 
 
 
-def print_packages_at_time(current_time: datetime, packages: Dictionary[int, Package], locations: Dictionary[int, Location]):
+def print_packages_at_time(current_time: datetime, packages: Dictionary[int, List[PackageUpdate]], locations: Dictionary[int, Location]):
     '''Prints the status of all packages at a given time O(n)
     
     Args:
@@ -162,8 +164,14 @@ def print_packages_at_time(current_time: datetime, packages: Dictionary[int, Pac
     package_rows = []
 
     # Sort the packages by id to ensure they are printed in order.
-    for p in sorted(packages.values, key= lambda p: p.package_id):
-        location = locations[p.location_id]
-        row = create_package_log_message(location, p, cleaned_time, location.truck_id)
-        package_rows.append([strfdatetime(cleaned_time), p.package_id, row])
+    for e in sorted(packages.entries, key= lambda e: e.key):
+        update = None
+        for i in range(1,len(e.value)+1):
+            u = e.value[-1*i]
+            if u.timestamp <= cleaned_time:
+                update = u
+                break
+        location = locations[update.package.location_id]
+        row = create_package_log_message(location, update.package, update.timestamp, location.truck_id)
+        package_rows.append([strfdatetime(cleaned_time), update.package.package_id, row])
     print_package_table(package_rows)

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import enum
 import time
-from typing import TypeVar, Generic, List
+from typing import TypeVar, Generic, List, TypeVarTuple
 from datetime import datetime
 
 
@@ -38,15 +38,8 @@ class StopReason:
 
 
 
-@dataclass
-class PackageTimeline:
-    at_hub: time
-    enroute: time
-    delivered: time
-
-
-
 class DeliveryStatus(enum.Enum):
+    Airport = "Airport"
     hub = "hub"
     enroute = "enroute"
     delivered = "delivered"
@@ -61,7 +54,25 @@ class Package:
     notes: str
     earliest: datetime
     latest: datetime
-    timeline: PackageTimeline
+    status: DeliveryStatus
+
+    def copy(self):
+        return Package(
+            package_id=self.package_id,
+            location_id=self.location_id,
+            weight=self.weight,
+            notes=self.notes,
+            earliest=self.earliest,
+            latest=self.latest,
+            status=self.status,
+        )
+
+
+
+@dataclass
+class PackageUpdate:
+    timestamp: datetime
+    package: Package
 
 
 

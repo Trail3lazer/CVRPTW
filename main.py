@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
-import json
 from typing import List
-from globals import MPH, START_OF_DAY
+from globals import INCORRECT_ADDRESS_UPDATE_TIME, MPH, START_OF_DAY
 from logger import (
     log_line,
     log_event,
@@ -10,16 +9,17 @@ from logger import (
     print_packages_at_time,
     print_route_distances_and_times,
 )
-from models import DeliveryStatus, Location, Stop, StopReason
+from models import DeliveryStatus, Location, PackageUpdate, Stop, StopReason
 from datalayer import get_data
 
 locations, matrix, packages = get_data()
+global updated_package_9_address 
+updated_package_9_address = False
 
 
 def update_packages(
-    status: str,
+    status: DeliveryStatus,
     location: Location,
-    package_ids: List[int],
     timestamp: datetime,
     truck_id: int,
 ):
@@ -35,15 +35,13 @@ def update_packages(
         package_ids: list of package ids
 
     """
-    for p_id in package_ids:
-        package = packages[p_id]
-        if status == DeliveryStatus.enroute:
-            package.timeline.enroute = timestamp
-        elif status == DeliveryStatus.delivered:
-            package.timeline.delivered = timestamp
+    for p_id in location.package_ids:
+        package = packages[p_id][-1].package.copy()
+        package.status = status
+        packages[p_id].append(PackageUpdate(timestamp, package))
 
         log(location, package, timestamp, truck_id)
-    return package_ids
+    return location.package_ids
 
 
 def calculate_truck_load(truck_load: List[int]):
@@ -84,12 +82,47 @@ def calc_arrival(distance: float, cur_time: datetime, earliest: datetime):
     return est_arrival_time
 
 
+def update_package_9_delivery(current_time: datetime, load: List[int]):
+    """Updates the address of package 9 O(n)
+
+    Args:
+        load: list of location ids
+    Returns:
+        load: list of location ids
+
+    """
+    # Update the global variable to prevent this function from being called again.
+    globals()["updated_package_9_address"] = True
+    new_location = None
+
+    # Find the location with the matching address.
+    for location in locations.values:
+        if location.address == "410 S State St":
+
+            # Update the package location and location package ids.
+            package = packages[9][-1].package.copy()
+            package.location_id = location.location_id
+            packages[9].append(PackageUpdate(current_time, package))
+            location.package_ids.append(9)
+            new_location = location
+    
+    not_in_load = len([l_id for l_id in load if l_id == new_location.location_id]) == 0
+    truck_has_room = calculate_truck_load(load) < 16
+
+    # If the new location is not in the load and the load has room, add the location with package 9 to the load.
+    if(not_in_load and truck_has_room):
+        load.append(new_location.location_id)
+        new_location.package_ids = [9]
+    
+    return load
+
+
 # Given an array of locations, use a hueristic algorithm to determine the path.
 # This uses the greedy nearest neighbors algorithm. This is the self adjusting part of the code.
 def route_load(
     start_location_id: int, start_time: datetime, truck_id: int, load: List[int]
 ):
-    """Calculates the route for a truck. O(n*log(n)) Polynomial: time = 0.019 * x^-0.7 (sec)
+    """Calculates the route for a truck. O(n^2)
 
     Args:
         start_location_id: the id of the location that the truck starts from (integer),
@@ -100,6 +133,7 @@ def route_load(
         route: list of stops
         cur_time: time the truck finishes
         total_route_distance: total distance traveled
+        updated_package_9_address: whether or not package 9's address has been updated
 
     """
 
@@ -143,6 +177,10 @@ def route_load(
         cur_time = best_time
         current_id = next_location.location_id
 
+        # Update package 9 address if it's after the update time and the package hasn't been updated yet.
+        if(not globals()["updated_package_9_address"] and cur_time >= INCORRECT_ADDRESS_UPDATE_TIME):
+            load = update_package_9_delivery(cur_time, load)
+
         # Set all stops to delivery except package hub
         reason = StopReason.delivery
         if next_location.location_id == 0:
@@ -154,7 +192,6 @@ def route_load(
         update_packages(
             DeliveryStatus.delivered,
             next_location,
-            next_location.package_ids,
             cur_time,
             truck_id,
         )
@@ -204,8 +241,7 @@ def update_load_status(
             loaded_location.truck_id = truck_id
             update_packages(
                 DeliveryStatus.enroute,
-                start_location,
-                loaded_location.package_ids,
+                loaded_location,
                 start_time,
                 truck_id,
             )
@@ -215,7 +251,7 @@ def update_load_status(
 
 
 def plan_truck_schedule(truck_id: int, schedule: List[List[int]], start_time: datetime):
-    """Plans the schedule for a truck O(n) Constant: time = 8.5E-05 (sec)
+    """Plans the schedule for a truck O(n)
 
     Args:
         truck_id: id of the truck
@@ -251,6 +287,8 @@ def main():
 
     later_start_time = START_OF_DAY.replace(hour=9, minute=5)
     truck1 = [[22, 24, 26], [0], [2, 4, 5, 9, 11, 14, 15, 18]]
+    for location_id in truck1[-1]:
+        update_packages(DeliveryStatus.hub, locations[location_id], later_start_time, 1)
     route1, t1_end, t1_miles = plan_truck_schedule(1, truck1, later_start_time)
 
     truck2 = [[1, 6, 7, 8, 12, 13, 19, 17, 25], [0], [3, 10, 23], [0], [20, 21]]
@@ -283,25 +321,5 @@ def main():
                 )
                 break
             print_packages_at_time(input_time, packages, locations)
-
-
-def run(func, args):
-    print(func.__name__)
-    """Runs the main function O(n)"""
-    result = None
-    def run_func(n):
-        for i in range(n):
-            if args is None:
-                result = func()
-            else:   
-                result = func(*args)
-            return result
-
-    big_o_result = big_o(run_func, datagen.n_)
-
-    for result in big_o_result:
-        print(result)
-    
-    return result
 
 main()

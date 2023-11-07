@@ -3,7 +3,7 @@ from typing import List
 from datetime import datetime, date, time
 from globals import END_OF_DAY, START_OF_DAY, TODAY
 from hash_table import Dictionary
-from models import Location, Package, DeliveryStatus, PackageTimeline
+from models import Location, Package, DeliveryStatus, PackageUpdate
 
 
 
@@ -152,7 +152,7 @@ def __add_packages_to_locations(locations: Dictionary[int, Location]):
     ''' 
     # TODO Make locations immutable
     # Create hashmap to hold packages.
-    packages = Dictionary[int, Package]()
+    packages = Dictionary[int, List[PackageUpdate]]()
 
     with open("packages.csv") as csv_file:
         # Skip headers because we can't use labels without dictReader.
@@ -161,37 +161,34 @@ def __add_packages_to_locations(locations: Dictionary[int, Location]):
         reader = csv.reader(csv_file)
         for line in reader:
             # Create location details that can be overridden in special cases
-            package_id = int(line[0])
+            package = Package(
+                package_id = int(line[0]),
+                location_id = None,
+                weight = line[6],
+                notes = line[7],
+                earliest = START_OF_DAY,
+                latest = __strp_deadline(line[5]),
+                status = DeliveryStatus.hub,
+            )
             address = str(line[1])
             city = line[2]
             state = line[3]
             postal_code = line[4]
-            earliest = START_OF_DAY
-            latest = __strp_deadline(line[5])
-            at_hub_time = earliest
 
-            # Override incorrect address details to correct ones
-            # and delay the package.
-            if package_id == 9:
-                address = "410 S State St"
-                city = "Salt Lake City"
-                state = "UT"
-                postal_code = "84111"
-                earliest = datetime.combine(TODAY.date(), time(10, 20))
+
+            if(package.package_id in [6,25,28,32]):
+                package.earliest = TODAY.replace(hour = 9, minute = 5)
+                package.status = DeliveryStatus.Airport
 
             # Find matching location for address
             for location in locations.values:
                 if address == location.address:
-                    package = Package(
-                        package_id = package_id,
-                        location_id = location.location_id,
-                        weight = line[6],
-                        notes = line[7],
-                        earliest = earliest,
-                        latest = latest,
-                        timeline = PackageTimeline(at_hub_time, None, None),
-                    )
-                    packages[package.package_id] = package
+                    package.location_id = location.location_id
+                    packages[package.package_id] = [PackageUpdate(TODAY, package)]
+
+                    # Don't add package 9 to a location because it's address is incorrect.
+                    if package.package_id == 9:
+                        continue
 
                     # Set location address details.
                     # TODO Handle locations with the same address but different
@@ -228,7 +225,7 @@ def get_data():
     Returns:
         locations: The locations parsed from the csv file
         matrix: The matrix of distances between locations
-        packages: The packages parsed from the csv file
+        packages: The history of packages parsed from the csv file
 
     '''
     locations, matrix = __get_locations()
